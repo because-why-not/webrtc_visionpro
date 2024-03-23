@@ -37,7 +37,7 @@ NS_ASSUME_NONNULL_BEGIN
  * cleanups.
  */
 
-#if WEBRTC_IOS
+#if defined(WEBRTC_IOS)
 - (BOOL)addRenderingDestination:(__kindof UIView *)view;
 #else
 - (BOOL)addRenderingDestination:(__kindof NSView *)view;
