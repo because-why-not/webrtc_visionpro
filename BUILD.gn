@@ -514,6 +514,9 @@ if (!build_with_chromium) {
       "pc:rtc_pc",
       "sdk",
       "video",
+      "//third_party/jsoncpp",
+      "api/video_codecs:builtin_video_decoder_factory",
+      "api/video_codecs:builtin_video_encoder_factory",
     ]
 
     if (rtc_include_builtin_audio_codecs) {

@@ -175,12 +175,14 @@ bool IsCompatibleVideoFrameBufferType(VideoFrameBuffer::Type left,
   return left == right;
 }
 
-void SetRawImagePlanes(vpx_image_t* raw_image, VideoFrameBuffer* buffer) {
+bool SetRawImagePlanes(vpx_image_t* raw_image, VideoFrameBuffer* buffer) {
   switch (buffer->type()) {
     case VideoFrameBuffer::Type::kI420:
     case VideoFrameBuffer::Type::kI420A: {
       const I420BufferInterface* i420_buffer = buffer->GetI420();
-      RTC_DCHECK(i420_buffer);
+      if (!i420_buffer) {
+        return false;
+      }
       raw_image->planes[VPX_PLANE_Y] =
           const_cast<uint8_t*>(i420_buffer->DataY());
       raw_image->planes[VPX_PLANE_U] =
@@ -194,7 +196,9 @@ void SetRawImagePlanes(vpx_image_t* raw_image, VideoFrameBuffer* buffer) {
     }
     case VideoFrameBuffer::Type::kNV12: {
       const NV12BufferInterface* nv12_buffer = buffer->GetNV12();
-      RTC_DCHECK(nv12_buffer);
+      if (!nv12_buffer) {
+        return false;
+      }
       raw_image->planes[VPX_PLANE_Y] =
           const_cast<uint8_t*>(nv12_buffer->DataY());
       raw_image->planes[VPX_PLANE_U] =
@@ -208,6 +212,7 @@ void SetRawImagePlanes(vpx_image_t* raw_image, VideoFrameBuffer* buffer) {
     default:
       RTC_DCHECK_NOTREACHED();
   }
+  return true;
 }
 
 }  // namespace
@@ -1376,7 +1381,9 @@ LibvpxVp8Encoder::PrepareBuffers(rtc::scoped_refptr<VideoFrameBuffer> buffer) {
   // Prepare `raw_images_` from `mapped_buffer` and, if simulcast, scaled
   // versions of `buffer`.
   std::vector<rtc::scoped_refptr<VideoFrameBuffer>> prepared_buffers;
-  SetRawImagePlanes(&raw_images_[0], mapped_buffer.get());
+  if (!SetRawImagePlanes(&raw_images_[0], mapped_buffer.get())) {
+    return {};
+  }
   prepared_buffers.push_back(mapped_buffer);
   for (size_t i = 1; i < encoders_.size(); ++i) {
     // Native buffers should implement optimized scaling and is the preferred
@@ -1419,7 +1426,9 @@ LibvpxVp8Encoder::PrepareBuffers(rtc::scoped_refptr<VideoFrameBuffer> buffer) {
           << VideoFrameBufferTypeToString(mapped_buffer->type());
       return {};
     }
-    SetRawImagePlanes(&raw_images_[i], scaled_buffer.get());
+    if (!SetRawImagePlanes(&raw_images_[i], scaled_buffer.get())) {
+      return {};
+    }
     prepared_buffers.push_back(scaled_buffer);
   }
   return prepared_buffers;
