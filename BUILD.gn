@@ -204,6 +204,11 @@ config("common_inherited_config") {
       "WEBRTC_MAC",
       "WEBRTC_IOS",
     ]
+    if(xros) {
+      defines += [
+        "WEBRTC_XROS",
+      ]
+    }
   }
   if (is_linux || is_chromeos) {
     defines += [ "WEBRTC_LINUX" ]

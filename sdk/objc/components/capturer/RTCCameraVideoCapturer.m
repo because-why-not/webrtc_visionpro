@@ -15,7 +15,7 @@
 #import "base/RTCVideoFrameBuffer.h"
 #import "components/video_frame_buffer/RTCCVPixelBuffer.h"
 
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS)
 #import "helpers/UIDevice+RTCDevice.h"
 #endif
 
@@ -41,7 +41,7 @@ const int64_t kNanosecondsPerSecond = 1000000000;
   FourCharCode _preferredOutputPixelFormat;
   FourCharCode _outputPixelFormat;
   RTCVideoRotation _rotation;
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS)
   UIDeviceOrientation _orientation;
   BOOL _generatingOrientationNotifications;
 #endif
@@ -74,13 +74,15 @@ const int64_t kNanosecondsPerSecond = 1000000000;
       return nil;
     }
     NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS) 
     _orientation = UIDeviceOrientationPortrait;
     _rotation = RTCVideoRotation_90;
+#if !defined(WEBRTC_XROS)
     [center addObserver:self
                selector:@selector(deviceOrientationDidChange:)
                    name:UIDeviceOrientationDidChangeNotification
                  object:nil];
+#endif
     [center addObserver:self
                selector:@selector(handleCaptureSessionInterruption:)
                    name:AVCaptureSessionWasInterruptedNotification
@@ -118,13 +120,17 @@ const int64_t kNanosecondsPerSecond = 1000000000;
 }
 
 + (NSArray<AVCaptureDevice *> *)captureDevices {
-#if defined(WEBRTC_IOS) && defined(__IPHONE_10_0) && \
+#if defined(WEBRTC_XROS)
+    return @[];
+#elif defined(WEBRTC_IOS) && defined(__IPHONE_10_0) && \
     __IPHONE_OS_VERSION_MIN_REQUIRED >= __IPHONE_10_0
+
   AVCaptureDeviceDiscoverySession *session = [AVCaptureDeviceDiscoverySession
       discoverySessionWithDeviceTypes:@[ AVCaptureDeviceTypeBuiltInWideAngleCamera ]
                             mediaType:AVMediaTypeVideo
                              position:AVCaptureDevicePositionUnspecified];
   return session.devices;
+
 #else
   return [AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo];
 #endif
@@ -160,7 +166,7 @@ const int64_t kNanosecondsPerSecond = 1000000000;
                     block:^{
                       RTCLogInfo("startCaptureWithDevice %@ @ %ld fps", format, (long)fps);
 
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS) && !defined(WEBRTC_XROS)
                       dispatch_async(dispatch_get_main_queue(), ^{
                         if (!self->_generatingOrientationNotifications) {
                           [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
@@ -207,7 +213,7 @@ const int64_t kNanosecondsPerSecond = 1000000000;
                       }
                       [self.captureSession stopRunning];
 
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS) && !defined(WEBRTC_XROS)
                       dispatch_async(dispatch_get_main_queue(), ^{
                         if (self->_generatingOrientationNotifications) {
                           [[UIDevice currentDevice] endGeneratingDeviceOrientationNotifications];
@@ -224,7 +230,7 @@ const int64_t kNanosecondsPerSecond = 1000000000;
 
 #pragma mark iOS notifications
 
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS)
 - (void)deviceOrientationDidChange:(NSNotification *)notification {
   [RTC_OBJC_TYPE(RTCDispatcher) dispatchAsyncOnType:RTCDispatcherTypeCaptureSession
                                               block:^{
@@ -250,7 +256,7 @@ const int64_t kNanosecondsPerSecond = 1000000000;
     return;
   }
 
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS) && !defined(WEBRTC_XROS)
   // Default to portrait orientation on iPhone.
   BOOL usingFrontCamera = NO;
   // Check the image's EXIF for the camera the image came from as the image could have been
@@ -302,7 +308,7 @@ const int64_t kNanosecondsPerSecond = 1000000000;
 - (void)captureOutput:(AVCaptureOutput *)captureOutput
     didDropSampleBuffer:(CMSampleBufferRef)sampleBuffer
          fromConnection:(AVCaptureConnection *)connection {
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS)
   CFStringRef droppedReason =
       CMGetAttachment(sampleBuffer, kCMSampleBufferAttachmentKey_DroppedFrameReason, nil);
 #else
@@ -316,7 +322,7 @@ const int64_t kNanosecondsPerSecond = 1000000000;
 
 - (void)handleCaptureSessionInterruption:(NSNotification *)notification {
   NSString *reasonString = nil;
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS)
   NSNumber *reason = notification.userInfo[AVCaptureSessionInterruptionReasonKey];
   if (reason) {
     switch (reason.intValue) {
@@ -348,7 +354,7 @@ const int64_t kNanosecondsPerSecond = 1000000000;
 
   [RTC_OBJC_TYPE(RTCDispatcher) dispatchAsyncOnType:RTCDispatcherTypeCaptureSession
                                               block:^{
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS)
                                                 if (error.code == AVErrorMediaServicesWereReset) {
                                                   [self handleNonFatalError];
                                                 } else {
@@ -399,7 +405,7 @@ const int64_t kNanosecondsPerSecond = 1000000000;
                                               }];
 }
 
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS)
 
 #pragma mark - UIApplication notifications
 
@@ -431,9 +437,10 @@ const int64_t kNanosecondsPerSecond = 1000000000;
 - (BOOL)setupCaptureSession:(AVCaptureSession *)captureSession {
   NSAssert(_captureSession == nil, @"Setup capture session called twice.");
   _captureSession = captureSession;
-#if defined(WEBRTC_IOS)
+#if defined(WEBRTC_IOS) && !defined(WEBRTC_XROS)
   _captureSession.sessionPreset = AVCaptureSessionPresetInputPriority;
   _captureSession.usesApplicationAudioSession = NO;
+
 #endif
   [self setupVideoDataOutput];
   // Add the output.
@@ -506,8 +513,12 @@ const int64_t kNanosecondsPerSecond = 1000000000;
   NSAssert([RTC_OBJC_TYPE(RTCDispatcher) isOnQueueForType:RTCDispatcherTypeCaptureSession],
            @"reconfigureCaptureSessionInput must be called on the capture queue.");
   NSError *error = nil;
+#if defined(WEBRTC_XROS)
+    AVCaptureDeviceInput *input = nil;
+#else
   AVCaptureDeviceInput *input =
       [AVCaptureDeviceInput deviceInputWithDevice:_currentDevice error:&error];
+#endif
   if (!input) {
     RTCLogError(@"Failed to create front camera input: %@", error.localizedDescription);
     return;
@@ -527,7 +538,7 @@ const int64_t kNanosecondsPerSecond = 1000000000;
 - (void)updateOrientation {
   NSAssert([RTC_OBJC_TYPE(RTCDispatcher) isOnQueueForType:RTCDispatcherTypeCaptureSession],
            @"updateOrientation must be called on the capture queue.");
-#if TARGET_OS_IPHONE
+#if defined(WEBRTC_IOS) && !defined(WEBRTC_XROS)
   _orientation = [UIDevice currentDevice].orientation;
 #endif
 }
