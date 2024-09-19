@@ -1363,12 +1363,9 @@ if (is_ios || is_mac) {
           ":videocodec_objc",
           ":videotoolbox_objc",
         ]
-        if(!xros)
-        {
-          deps += [
-          ":metal_objc",
-          ]
-        }
+        deps += [
+        ":metal_objc",
+        ]
         
         if (!build_with_chromium) {
           deps += [
